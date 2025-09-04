@@ -59,8 +59,9 @@ def _copy_file_with_retry(src_file: str, dest_file: str, retries: int):
         except Exception as e:
             if attempt < retries:
                 retry_delay = 3
-                # --- MODIFIED: Set global status message instead of writing to console ---
-                status_message = (f"{Fore.YELLOW}Error on '{currently_processed_file}': {e}. "
+                # --- FIX: Sanitize error message to be a single line ---
+                error_str = str(e).replace('\n', ' ').replace('\r', '')
+                status_message = (f"{Fore.YELLOW}Error on '{currently_processed_file}': {error_str}. "
                                   f"Retrying... (Attempt {attempt + 1}/{retries}){Style.RESET_ALL}")
                 time.sleep(retry_delay)
             else:
@@ -201,14 +202,13 @@ def main():
                           f"{Fore.YELLOW}Down: {format_speed(download_speed)}{Style.RESET_ALL} | "
                           f"{Style.DIM}{file_info}{Style.RESET_ALL}")
             
-            # --- MODIFIED: Manage a 3-line display (bar, stats, status) ---
             sys.stdout.write(f'\r{pbar}\n\x1b[2K{stats_line}\n\x1b[2K{status_message}\r')
             sys.stdout.flush()
-            sys.stdout.write('\x1b[2A') # Move cursor up two lines
+            sys.stdout.write('\x1b[2A')
             
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\n\n\n") # Move cursor below all UI elements
+        print("\n\n\n")
         print(f"{Fore.YELLOW}{Style.BRIGHT}✖ Operation cancelled by user.{Style.RESET_ALL}")
         sys.stdout.write('\x1b[?25h'); sys.stdout.flush()
         sys.exit(0)
@@ -227,7 +227,7 @@ def main():
                    f"{Fore.YELLOW}Down: {format_speed(0)}{Style.RESET_ALL} | "
                    f"{Style.DIM}File: {'Complete':<30}{Style.RESET_ALL}")
 
-    sys.stdout.write(f'\r\x1b[2K{final_stats}\n\x1b[2K\n') # Overwrite stats, clear status line
+    sys.stdout.write(f'\r\x1b[2K{final_stats}\n\x1b[2K\n')
     sys.stdout.flush()
 
     if copy_error:
