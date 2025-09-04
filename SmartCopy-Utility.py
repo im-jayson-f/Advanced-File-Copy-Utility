@@ -154,6 +154,7 @@ def main():
 
     if total_size == 0: print(f"{Fore.YELLOW}Warning: Source is empty. Nothing to copy."); return
     
+    # --- FIX: Set leave=True to ensure the bar persists ---
     pbar = tqdm(total=total_size, unit='B', unit_scale=True, colour='green', bar_format="{l_bar}{bar:50}{r_bar}", leave=True)
     
     copy_thread = threading.Thread(target=checksum_copy_worker, args=(source_path, target_dest_path, args.retry, pbar))
@@ -193,7 +194,10 @@ def main():
                           f"{Fore.YELLOW}Down: {format_speed(download_speed)}{Style.RESET_ALL} | "
                           f"{Style.DIM}{file_info}{Style.RESET_ALL}")
             
-            pbar.display(stats_line, 0) # Use tqdm's display method
+            # --- FIX: Reverted to the stable two-line ANSI code method ---
+            sys.stdout.write(f'\r{pbar}\n\x1b[2K{stats_line}\r')
+            sys.stdout.flush()
+            sys.stdout.write('\x1b[1A')
             
             time.sleep(1)
     except KeyboardInterrupt:
@@ -209,6 +213,16 @@ def main():
 
     if pbar.n < total_size: pbar.update(total_size - pbar.n)
     pbar.close()
+
+    final_stats = (f"{Fore.CYAN}CPU: {psutil.cpu_percent():>5.1f}%{Style.RESET_ALL} | "
+                   f"{Fore.MAGENTA}RAM: {psutil.virtual_memory().percent:>5.1f}%{Style.RESET_ALL} | "
+                   f"{Fore.GREEN}Up: {format_speed(0)}{Style.RESET_ALL} | "
+                   f"{Fore.YELLOW}Down: {format_speed(0)}{Style.RESET_ALL} | "
+                   f"{Style.DIM}File: {'Complete':<30}{Style.RESET_ALL}")
+
+    # The cursor is now below the finished bar. We just overwrite the last stats line.
+    sys.stdout.write(f'\r\x1b[2K{final_stats}\n')
+    sys.stdout.flush()
 
     if copy_error:
         error_exception, error_file = copy_error
