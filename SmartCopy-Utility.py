@@ -5,6 +5,7 @@ import threading
 import time
 import psutil
 import hashlib
+import argparse
 from tqdm import tqdm
 from colorama import Fore, Style, init
 
@@ -45,10 +46,27 @@ def get_total_size(path: str) -> int:
         tqdm.write(f"{Fore.RED}Error calculating size for {path}: {e}")
     return total_size
 
-def checksum_copy_worker(source: str, destination: str, pbar: tqdm):
+def _copy_file_with_retry(src_file: str, dest_file: str, retries: int):
+    """Helper function to handle the copy and retry logic for a single file."""
+    global copy_error, currently_processed_file
+    
+    for attempt in range(retries + 1):
+        try:
+            shutil.copy2(src_file, dest_file)
+            return
+        except Exception as e:
+            if attempt < retries:
+                retry_delay = 3
+                tqdm.write(f"{Fore.YELLOW}Error on '{currently_processed_file}': {e}. "
+                           f"Retrying in {retry_delay}s... (Attempt {attempt + 2}/{retries + 1}){Style.RESET_ALL}")
+                time.sleep(retry_delay)
+            else:
+                copy_error = (e, currently_processed_file)
+                raise
+
+def checksum_copy_worker(source: str, destination: str, retries: int, pbar: tqdm):
     """
-    Copies files and folders, performing checksum verification. Updates the progress bar.
-    Communicates the current file being processed via a global variable.
+    Copies files and folders, performing checksum verification and retries.
     """
     global copy_error, currently_processed_file
     try:
@@ -57,7 +75,7 @@ def checksum_copy_worker(source: str, destination: str, pbar: tqdm):
             dest_file = os.path.join(destination, os.path.basename(source))
             os.makedirs(destination, exist_ok=True)
             if not (os.path.exists(dest_file) and get_checksum(source) == get_checksum(dest_file)):
-                shutil.copy2(source, dest_file)
+                _copy_file_with_retry(source, dest_file, retries)
             pbar.update(os.path.getsize(source))
             return
 
@@ -70,30 +88,12 @@ def checksum_copy_worker(source: str, destination: str, pbar: tqdm):
                 src_file = os.path.join(dirpath, filename)
                 dest_file = os.path.join(dest_dir, filename)
                 if not (os.path.exists(dest_file) and get_checksum(src_file) == get_checksum(dest_file)):
-                    shutil.copy2(src_file, dest_file)
+                    _copy_file_with_retry(src_file, dest_file, retries)
                 pbar.update(os.path.getsize(src_file))
-    except Exception as e:
-        # --- FEATURE: Capture both the error and the filename ---
-        copy_error = (e, currently_processed_file)
+    except Exception:
+        return
     finally:
         currently_processed_file = "Finalizing..."
-
-def get_paths(mode_ref: dict):
-    """Parses command-line arguments or prompts the user for paths."""
-    source_path, dest_path = "", ""
-    if len(sys.argv) >= 3:
-        mode_ref['name'] = "Running in Command-Line Mode."
-        source_path, dest_path = sys.argv[1], sys.argv[2]
-    elif len(sys.argv) == 2:
-        mode_ref['name'] = "Running in Drag-and-Drop Mode."
-        source_path = sys.argv[1]
-        print(f"Source Path Provided: {Fore.CYAN}{source_path}")
-        dest_path = input(f"Enter the {Fore.YELLOW}DESTINATION{Style.RESET_ALL} folder path: ")
-    else:
-        mode_ref['name'] = "Running in Interactive Mode."
-        source_path = input(f"Enter the {Fore.YELLOW}SOURCE{Style.RESET_ALL} file or folder path: ")
-        dest_path = input(f"Enter the {Fore.YELLOW}DESTINATION{Style.RESET_ALL} folder path: ")
-    return source_path.strip('"'), dest_path.strip('"')
 
 def format_speed(speed_bytes_per_sec: float) -> str:
     """Formats speed in bytes/sec to a human-readable string."""
@@ -113,39 +113,50 @@ def format_duration(seconds: float) -> str:
 def main():
     """Main function to orchestrate the copy process."""
     clear_screen()
-    print(f"{Style.BRIGHT}\n--- Advanced Python File Copy Utility ---{Style.RESET_ALL}")
     
-    mode_info = {'name': ''}
-    source_path, dest_path = get_paths(mode_info)
+    parser = argparse.ArgumentParser(
+        description="Advanced Python File Copy Utility with progress, stats, and retries.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog=f"Usage examples:\n"
+               f"  python {sys.argv[0]} \"C:\\source_folder\" \"D:\\destination_folder\"\n"
+               f"  python {sys.argv[0]} \"./my file.zip\" \"./backup\" --retry 3"
+    )
+    parser.add_argument("source", help="The source file or folder path.")
+    parser.add_argument("destination", help="The destination folder path.")
+    parser.add_argument("--retry", type=int, default=0, help="Number of times to retry a failed file copy.\nDefault is 0 (one attempt, no retries).")
+    
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(0)
+        
+    args = parser.parse_args()
+    
+    source_path = args.source
+    dest_path = args.destination
 
-    if not source_path or not dest_path: print(f"{Fore.RED}Error: Source and Destination paths are required."); return
+    def print_ui_frame(mode_str=""):
+        clear_screen()
+        print(f"{Style.BRIGHT}\n--- Advanced Python File Copy Utility ---{Style.RESET_ALL}")
+        print(f"{Style.BRIGHT}{mode_str}{Style.RESET_ALL}\n")
+        print(f"{Style.BRIGHT}Source:      {Fore.CYAN}{source_path}{Style.RESET_ALL}")
+        print(f"{Style.BRIGHT}Destination: {Fore.CYAN}{target_dest_path}{Style.RESET_ALL}")
+        print(f"{Style.BRIGHT}Retries:     {Fore.YELLOW}{args.retry}{Style.RESET_ALL}\n")
+
     if not os.path.exists(source_path): print(f"{Fore.RED}Error: Source path does not exist: {source_path}"); return
 
     target_dest_path = os.path.join(dest_path, os.path.basename(source_path)) if os.path.isdir(source_path) else dest_path
     
-    def print_ui_frame():
-        clear_screen()
-        print(f"{Style.BRIGHT}\n--- Advanced Python File Copy Utility ---{Style.RESET_ALL}")
-        print(f"{Style.BRIGHT}{mode_info['name']}{Style.RESET_ALL}\n")
-        print(f"{Style.BRIGHT}Source:      {Fore.CYAN}{source_path}{Style.RESET_ALL}")
-        print(f"{Style.BRIGHT}Destination: {Fore.CYAN}{target_dest_path}{Style.RESET_ALL}\n")
-
-    print_ui_frame()
+    print_ui_frame("Preparing...")
     input("Press Enter to begin the transfer...")
     
-    print_ui_frame() 
-    
-    sys.stdout.write("Calculating total size... ")
-    sys.stdout.flush()
+    print_ui_frame("Calculating...")
     total_size = get_total_size(source_path)
-    sys.stdout.write(f"\r\x1b[2K")
-    sys.stdout.flush()
 
     if total_size == 0: print(f"{Fore.YELLOW}Warning: Source is empty. Nothing to copy."); return
     
     pbar = tqdm(total=total_size, unit='B', unit_scale=True, colour='green', bar_format="{l_bar}{bar:50}{r_bar}", leave=True)
     
-    copy_thread = threading.Thread(target=checksum_copy_worker, args=(source_path, target_dest_path, pbar))
+    copy_thread = threading.Thread(target=checksum_copy_worker, args=(source_path, target_dest_path, args.retry, pbar))
     copy_thread.daemon = True
     
     start_time = time.time()
@@ -159,7 +170,7 @@ def main():
         while copy_thread.is_alive():
             current_term_size = shutil.get_terminal_size()
             if current_term_size != last_term_size:
-                print_ui_frame()
+                print_ui_frame("Transferring...")
                 last_term_size = current_term_size
 
             cpu_percent = psutil.cpu_percent()
@@ -182,16 +193,13 @@ def main():
                           f"{Fore.YELLOW}Down: {format_speed(download_speed)}{Style.RESET_ALL} | "
                           f"{Style.DIM}{file_info}{Style.RESET_ALL}")
             
-            sys.stdout.write(f'\r{pbar}\n\x1b[2K{stats_line}\r')
-            sys.stdout.flush()
-            sys.stdout.write('\x1b[1A')
+            pbar.display(stats_line, 0) # Use tqdm's display method
             
             time.sleep(1)
     except KeyboardInterrupt:
         print("\n\n")
         print(f"{Fore.YELLOW}{Style.BRIGHT}✖ Operation cancelled by user.{Style.RESET_ALL}")
-        sys.stdout.write('\x1b[?25h')
-        sys.stdout.flush()
+        sys.stdout.write('\x1b[?25h'); sys.stdout.flush()
         sys.exit(0)
 
     # --- FINALIZATION ---
@@ -199,25 +207,14 @@ def main():
     total_duration = end_time - start_time
     formatted_duration = format_duration(total_duration)
 
-    pbar.update(total_size - pbar.n)
+    if pbar.n < total_size: pbar.update(total_size - pbar.n)
     pbar.close()
-    copy_thread.join()
 
-    final_stats = (f"{Fore.CYAN}CPU: {psutil.cpu_percent():>5.1f}%{Style.RESET_ALL} | "
-                   f"{Fore.MAGENTA}RAM: {psutil.virtual_memory().percent:>5.1f}%{Style.RESET_ALL} | "
-                   f"{Fore.GREEN}Up: {format_speed(0)}{Style.RESET_ALL} | "
-                   f"{Fore.YELLOW}Down: {format_speed(0)}{Style.RESET_ALL} | "
-                   f"{Style.DIM}File: {'Complete':<30}{Style.RESET_ALL}")
-    
-    sys.stdout.write(f'\r\x1b[2K{final_stats}\n')
-    sys.stdout.flush()
-    
-    # --- FEATURE: Display detailed error message ---
     if copy_error:
         error_exception, error_file = copy_error
         print(f"\n{Fore.RED}{Style.BRIGHT}An error occurred while processing file: {Fore.YELLOW}{error_file}{Style.RESET_ALL}")
         print(f"{Fore.RED}Error details: {error_exception}")
-        print(f"\n{Fore.YELLOW}On the next run, the process will skip successfully copied files and resume from the point of failure.")
+        print(f"\n{Fore.YELLOW}The operation was stopped. On the next run, copied files will be skipped automatically.")
     else:
         print()
         print(f"{Fore.BLUE}{Style.BRIGHT}✔ Transfer complete!{Style.RESET_ALL}")
@@ -225,7 +222,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-    sys.stdout.write('\x1b[?25h')
-    sys.stdout.flush()
+    sys.stdout.write('\x1b[?25h'); sys.stdout.flush()
     input("\nPress Enter to exit.")
 
