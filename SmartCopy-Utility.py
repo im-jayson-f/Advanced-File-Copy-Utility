@@ -73,7 +73,8 @@ def checksum_copy_worker(source: str, destination: str, pbar: tqdm):
                     shutil.copy2(src_file, dest_file)
                 pbar.update(os.path.getsize(src_file))
     except Exception as e:
-        copy_error = e
+        # --- FEATURE: Capture both the error and the filename ---
+        copy_error = (e, currently_processed_file)
     finally:
         currently_processed_file = "Finalizing..."
 
@@ -145,7 +146,7 @@ def main():
     pbar = tqdm(total=total_size, unit='B', unit_scale=True, colour='green', bar_format="{l_bar}{bar:50}{r_bar}", leave=True)
     
     copy_thread = threading.Thread(target=checksum_copy_worker, args=(source_path, target_dest_path, pbar))
-    copy_thread.daemon = True # Allows main thread to exit and kill worker on Ctrl+C
+    copy_thread.daemon = True
     
     start_time = time.time()
     copy_thread.start()
@@ -174,8 +175,7 @@ def main():
                 download_speed = (current_net_io.bytes_recv - last_net_io.bytes_recv) / elapsed_time
             last_net_io, last_check_time = current_net_io, current_time
             
-            # --- FEATURE: Current file is now part of the stats line ---
-            file_info = f"File: {currently_processed_file[:30]:<30}" # Truncate long filenames
+            file_info = f"File: {currently_processed_file[:30]:<30}"
             stats_line = (f"{Fore.CYAN}CPU: {cpu_percent:>5.1f}%{Style.RESET_ALL} | "
                           f"{Fore.MAGENTA}RAM: {ram_percent:>5.1f}%{Style.RESET_ALL} | "
                           f"{Fore.GREEN}Up: {format_speed(upload_speed)}{Style.RESET_ALL} | "
@@ -188,10 +188,8 @@ def main():
             
             time.sleep(1)
     except KeyboardInterrupt:
-        # --- FEATURE: Graceful exit on Ctrl+C ---
-        print("\n\n") # Move cursor below the progress bar area
+        print("\n\n")
         print(f"{Fore.YELLOW}{Style.BRIGHT}✖ Operation cancelled by user.{Style.RESET_ALL}")
-        # Make sure cursor is visible before exiting
         sys.stdout.write('\x1b[?25h')
         sys.stdout.flush()
         sys.exit(0)
@@ -214,8 +212,12 @@ def main():
     sys.stdout.write(f'\r\x1b[2K{final_stats}\n')
     sys.stdout.flush()
     
+    # --- FEATURE: Display detailed error message ---
     if copy_error:
-        print(f"\n{Fore.RED}An error occurred during the copy process:\n{copy_error}")
+        error_exception, error_file = copy_error
+        print(f"\n{Fore.RED}{Style.BRIGHT}An error occurred while processing file: {Fore.YELLOW}{error_file}{Style.RESET_ALL}")
+        print(f"{Fore.RED}Error details: {error_exception}")
+        print(f"\n{Fore.YELLOW}On the next run, the process will skip successfully copied files and resume from the point of failure.")
     else:
         print()
         print(f"{Fore.BLUE}{Style.BRIGHT}✔ Transfer complete!{Style.RESET_ALL}")
@@ -223,7 +225,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # Ensure cursor is visible on normal exit too
     sys.stdout.write('\x1b[?25h')
     sys.stdout.flush()
     input("\nPress Enter to exit.")
