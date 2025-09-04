@@ -15,6 +15,7 @@ init(autoreset=True)
 # --- Global state for communication between threads ---
 copy_error = None
 currently_processed_file = "Initializing..."
+status_message = "" # New global for status updates
 
 def clear_screen():
     """Clears the terminal screen."""
@@ -48,27 +49,33 @@ def get_total_size(path: str) -> int:
 
 def _copy_file_with_retry(src_file: str, dest_file: str, retries: int):
     """Helper function to handle the copy and retry logic for a single file."""
-    global copy_error, currently_processed_file
+    global copy_error, currently_processed_file, status_message
     
     for attempt in range(retries + 1):
         try:
             shutil.copy2(src_file, dest_file)
-            return
+            status_message = "" # Clear status on success
+            return 
         except Exception as e:
             if attempt < retries:
                 retry_delay = 3
-                tqdm.write(f"{Fore.YELLOW}Error on '{currently_processed_file}': {e}. "
-                           f"Retrying in {retry_delay}s... (Attempt {attempt + 2}/{retries + 1}){Style.RESET_ALL}")
+                # --- MODIFIED: Set global status message instead of writing to console ---
+                status_message = (f"{Fore.YELLOW}Error on '{currently_processed_file}': {e}. "
+                                  f"Retrying... (Attempt {attempt + 1}/{retries}){Style.RESET_ALL}")
                 time.sleep(retry_delay)
             else:
+                status_message = "" # Clear status on final failure
                 copy_error = (e, currently_processed_file)
                 raise
+    # After a successful retry, clear the message
+    status_message = ""
+
 
 def checksum_copy_worker(source: str, destination: str, retries: int, pbar: tqdm):
     """
     Copies files and folders, performing checksum verification and retries.
     """
-    global copy_error, currently_processed_file
+    global copy_error, currently_processed_file, status_message
     try:
         if os.path.isfile(source):
             currently_processed_file = os.path.basename(source)
@@ -94,6 +101,7 @@ def checksum_copy_worker(source: str, destination: str, retries: int, pbar: tqdm
         return
     finally:
         currently_processed_file = "Finalizing..."
+        status_message = ""
 
 def format_speed(speed_bytes_per_sec: float) -> str:
     """Formats speed in bytes/sec to a human-readable string."""
@@ -154,7 +162,6 @@ def main():
 
     if total_size == 0: print(f"{Fore.YELLOW}Warning: Source is empty. Nothing to copy."); return
     
-    # --- FIX: Set leave=True to ensure the bar persists ---
     pbar = tqdm(total=total_size, unit='B', unit_scale=True, colour='green', bar_format="{l_bar}{bar:50}{r_bar}", leave=True)
     
     copy_thread = threading.Thread(target=checksum_copy_worker, args=(source_path, target_dest_path, args.retry, pbar))
@@ -194,14 +201,14 @@ def main():
                           f"{Fore.YELLOW}Down: {format_speed(download_speed)}{Style.RESET_ALL} | "
                           f"{Style.DIM}{file_info}{Style.RESET_ALL}")
             
-            # --- FIX: Reverted to the stable two-line ANSI code method ---
-            sys.stdout.write(f'\r{pbar}\n\x1b[2K{stats_line}\r')
+            # --- MODIFIED: Manage a 3-line display (bar, stats, status) ---
+            sys.stdout.write(f'\r{pbar}\n\x1b[2K{stats_line}\n\x1b[2K{status_message}\r')
             sys.stdout.flush()
-            sys.stdout.write('\x1b[1A')
+            sys.stdout.write('\x1b[2A') # Move cursor up two lines
             
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\n\n")
+        print("\n\n\n") # Move cursor below all UI elements
         print(f"{Fore.YELLOW}{Style.BRIGHT}✖ Operation cancelled by user.{Style.RESET_ALL}")
         sys.stdout.write('\x1b[?25h'); sys.stdout.flush()
         sys.exit(0)
@@ -220,8 +227,7 @@ def main():
                    f"{Fore.YELLOW}Down: {format_speed(0)}{Style.RESET_ALL} | "
                    f"{Style.DIM}File: {'Complete':<30}{Style.RESET_ALL}")
 
-    # The cursor is now below the finished bar. We just overwrite the last stats line.
-    sys.stdout.write(f'\r\x1b[2K{final_stats}\n')
+    sys.stdout.write(f'\r\x1b[2K{final_stats}\n\x1b[2K\n') # Overwrite stats, clear status line
     sys.stdout.flush()
 
     if copy_error:
@@ -230,7 +236,6 @@ def main():
         print(f"{Fore.RED}Error details: {error_exception}")
         print(f"\n{Fore.YELLOW}The operation was stopped. On the next run, copied files will be skipped automatically.")
     else:
-        print()
         print(f"{Fore.BLUE}{Style.BRIGHT}✔ Transfer complete!{Style.RESET_ALL}")
         print(f"Total time elapsed: {Fore.YELLOW}{Style.BRIGHT}{formatted_duration}{Style.RESET_ALL}")
 
