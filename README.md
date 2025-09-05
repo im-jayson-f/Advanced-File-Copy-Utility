@@ -95,10 +95,10 @@ Source:      C:\source_folder
 Destination: D:\destination_folder
 Retries:     3
 
-[##########------------------------------] 25%  50.0MB/200.0MB
-CPU:  12.5% | RAM:  48.3% | Up:  0.00 KB/s | Down:  0.00 KB/s | File: example.txt
+100% |🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩| 12.3G/12.3G [6:46:27<7:19:19, 1.82MB/s]
+CPU:  12.5% | RAM:  48.3% | Up:  0.00 KB/s | Down:  0.00 KB/s | File: example.bak
 
-✔ Transfer complete!
+✔️ Transfer complete!
 Total time elapsed: 53 second(s)
 
 Press Enter to exit.
@@ -108,4 +108,4 @@ Press Enter to exit.
 
 ## 📜 License  
 
-Free to use and modify 😊✨  
+MIT License. Free to use and modify 😊✨  
