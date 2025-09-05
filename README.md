@@ -2,9 +2,11 @@
 
 An advanced Python-based file copy utility with **progress bars, checksum verification, retries, and system stats** (CPU, RAM, network speed). Perfect for reliable file transfers with visual feedback.  
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)  
-![License](https://img.shields.io/badge/License-MIT-green.svg)  
-![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)  
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.8+-blue.svg" alt="Python" />
+  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License" />
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg" alt="Platform" />
+</p>
 
 ---
 
