@@ -108,4 +108,4 @@ Press Enter to exit.
 
 ## 📜 License  
 
-MIT License. Free to use and modify 😊✨  
+Free to use and modify 😊✨  
