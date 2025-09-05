@@ -1,4 +1,4 @@
-# 🚀 SmartCopy Utility  
+# 🚀 Advanced File Copy Utility (SmartCopy Utility)
 
 An advanced Python-based file copy utility with **progress bars, checksum verification, retries, and system stats** (CPU, RAM, network speed). Perfect for reliable file transfers with visual feedback.  
 
