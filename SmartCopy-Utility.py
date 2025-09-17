@@ -117,22 +117,43 @@ def missing_files_copy_worker(files_to_copy: list, retries: int, pbar: tqdm):
         currently_processed_file = "Finalizing..."
 
 def find_missing_files(source_path: str, dest_path: str) -> tuple[list, int]:
-    """Scans and returns a list of (source, destination) path tuples for missing files, and their total size."""
+    """
+    Scans for source files whose filenames do not exist anywhere in the destination path.
+    """
     files_to_copy = []
     total_size = 0
     
+    # --- FIX: Pre-scan destination to get all existing filenames ---
+    dest_filenames = set()
+    search_dir = ""
+    
+    if os.path.isdir(source_path):
+        # If source is a directory, the search area is the destination directory
+        search_dir = dest_path
+    else:
+        # If source is a file, the search area is the parent of the destination file path
+        search_dir = os.path.dirname(dest_path)
+
+    if os.path.isdir(search_dir):
+        for _, _, filenames in os.walk(search_dir):
+            for filename in filenames:
+                dest_filenames.add(filename)
+
+    # --- Now, check source against the collected destination filenames ---
     if os.path.isdir(source_path):
         for dirpath, _, filenames in os.walk(source_path):
             for filename in filenames:
-                src_file = os.path.join(dirpath, filename)
-                relative_path = os.path.relpath(src_file, source_path)
-                dst_file = os.path.join(dest_path, relative_path)
-                
-                if not os.path.exists(dst_file):
+                # Check if the filename itself is missing from the destination tree
+                if filename not in dest_filenames:
+                    src_file = os.path.join(dirpath, filename)
+                    relative_path = os.path.relpath(src_file, source_path)
+                    dst_file = os.path.join(dest_path, relative_path)
+                    
                     files_to_copy.append((src_file, dst_file))
                     total_size += os.path.getsize(src_file)
     else: # It's a single file
-        if not os.path.exists(dest_path):
+        source_filename = os.path.basename(source_path)
+        if source_filename not in dest_filenames:
             files_to_copy.append((source_path, dest_path))
             total_size += os.path.getsize(source_path)
 
@@ -268,7 +289,6 @@ def main():
 
         print(f"\n{Fore.YELLOW}Found {len(files_to_copy)} missing file(s) ({tqdm.format_sizeof(total_missing_size, 'B')}):{Style.RESET_ALL}")
         for src, _ in sorted(files_to_copy):
-            # Correctly display the relative path from the original source folder
             if os.path.isdir(source_path):
                  print(f" - {os.path.relpath(src, source_path)}")
             else:
@@ -283,7 +303,7 @@ def main():
             copy_thread = threading.Thread(target=missing_files_copy_worker, args=(files_to_copy, args.retry, pbar))
             total_duration = run_transfer_monitoring(copy_thread, pbar, print_ui_frame, "Copying Missing Files...")
         else:
-            sys.exit(0) # Exit after just displaying
+            sys.exit(0)
     else:
         # --- Normal Full Sync Operation ---
         print_ui_frame("Preparing for Full Sync...")
