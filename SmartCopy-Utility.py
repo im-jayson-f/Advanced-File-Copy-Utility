@@ -53,13 +53,16 @@ def _copy_file_with_retry(src_file: str, dest_file: str, retries: int):
     
     for attempt in range(retries + 1):
         try:
+            # Ensure parent directory exists before copying
+            parent_dir = os.path.dirname(dest_file)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
             shutil.copy2(src_file, dest_file)
             status_message = "" # Clear status on success
             return 
         except Exception as e:
             if attempt < retries:
                 retry_delay = 3
-                # --- FIX: Sanitize error message to be a single line ---
                 error_str = str(e).replace('\n', ' ').replace('\r', '')
                 status_message = (f"{Fore.YELLOW}Error on '{currently_processed_file}': {error_str}. "
                                   f"Retrying... (Attempt {attempt + 1}/{retries}){Style.RESET_ALL}")
@@ -68,7 +71,6 @@ def _copy_file_with_retry(src_file: str, dest_file: str, retries: int):
                 status_message = "" # Clear status on final failure
                 copy_error = (e, currently_processed_file)
                 raise
-    # After a successful retry, clear the message
     status_message = ""
 
 
@@ -80,8 +82,7 @@ def checksum_copy_worker(source: str, destination: str, retries: int, pbar: tqdm
     try:
         if os.path.isfile(source):
             currently_processed_file = os.path.basename(source)
-            dest_file = os.path.join(destination, os.path.basename(source))
-            os.makedirs(destination, exist_ok=True)
+            dest_file = destination # Destination is the full target path for files
             if not (os.path.exists(dest_file) and get_checksum(source) == get_checksum(dest_file)):
                 _copy_file_with_retry(source, dest_file, retries)
             pbar.update(os.path.getsize(source))
@@ -89,6 +90,7 @@ def checksum_copy_worker(source: str, destination: str, retries: int, pbar: tqdm
 
         for dirpath, _, filenames in os.walk(source):
             relative_dir = os.path.relpath(dirpath, source)
+            # For directories, destination is the root to mirror into
             dest_dir = os.path.join(destination, relative_dir)
             os.makedirs(dest_dir, exist_ok=True)
             for filename in filenames:
@@ -119,6 +121,33 @@ def format_duration(seconds: float) -> str:
     hours, minutes = divmod(minutes, 60)
     return f"{hours} hour(s), {minutes} minute(s), and {secs} second(s)"
 
+def list_missing_files(source_path: str, dest_path: str):
+    """Scans and prints a list of files present in source but not in destination."""
+    print(f"\n{Style.BRIGHT}Scanning for files in source that are missing from destination...{Style.RESET_ALL}")
+    missing_files = []
+    
+    if os.path.isdir(source_path):
+        for dirpath, _, filenames in os.walk(source_path):
+            for filename in filenames:
+                src_file = os.path.join(dirpath, filename)
+                relative_path = os.path.relpath(src_file, source_path)
+                dst_file = os.path.join(dest_path, relative_path)
+                
+                if not os.path.exists(dst_file):
+                    missing_files.append(relative_path)
+    else: # It's a single file
+        dst_file = dest_path
+        if not os.path.exists(dst_file):
+            missing_files.append(os.path.basename(source_path))
+
+    if missing_files:
+        print(f"\n{Fore.YELLOW}The following files are missing from the destination:{Style.RESET_ALL}")
+        for file in sorted(missing_files):
+            print(f" - {file}")
+    else:
+        print(f"\n{Fore.GREEN}✔ No missing files found. The destination appears to be in sync.{Style.RESET_ALL}")
+
+
 def main():
     """Main function to orchestrate the copy process."""
     clear_screen()
@@ -128,11 +157,13 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter,
         epilog=f"Usage examples:\n"
                f"  python {sys.argv[0]} \"C:\\source_folder\" \"D:\\destination_folder\"\n"
-               f"  python {sys.argv[0]} \"./my file.zip\" \"./backup\" --retry 3"
+               f"  python {sys.argv[0]} \"./my file.zip\" \"./backup\" --retry 3\n"
+               f"  python {sys.argv[0]} \"./source\" \"./dest\" --list-missing"
     )
     parser.add_argument("source", help="The source file or folder path.")
     parser.add_argument("destination", help="The destination folder path.")
     parser.add_argument("--retry", type=int, default=0, help="Number of times to retry a failed file copy.\nDefault is 0 (one attempt, no retries).")
+    parser.add_argument("--list-missing", action="store_true", help="Scan and list files missing from the destination.\nDoes not copy any files.")
     
     if len(sys.argv) == 1:
         parser.print_help()
@@ -149,13 +180,29 @@ def main():
         print(f"{Style.BRIGHT}{mode_str}{Style.RESET_ALL}\n")
         print(f"{Style.BRIGHT}Source:      {Fore.CYAN}{source_path}{Style.RESET_ALL}")
         print(f"{Style.BRIGHT}Destination: {Fore.CYAN}{target_dest_path}{Style.RESET_ALL}")
-        print(f"{Style.BRIGHT}Retries:     {Fore.YELLOW}{args.retry}{Style.RESET_ALL}\n")
+        if not args.list_missing:
+            print(f"{Style.BRIGHT}Retries:     {Fore.YELLOW}{args.retry}{Style.RESET_ALL}\n")
 
     if not os.path.exists(source_path): print(f"{Fore.RED}Error: Source path does not exist: {source_path}"); return
 
-    target_dest_path = os.path.join(dest_path, os.path.basename(source_path)) if os.path.isdir(source_path) else dest_path
+    # --- FIX: Correct, intuitive logic to determine the final target path ---
+    if os.path.isdir(source_path):
+        # For a source directory, the target is the destination path itself. Contents will be mirrored inside.
+        target_dest_path = dest_path
+    else: # Source is a file
+        # If the destination path exists and is a directory, the target is a file inside that directory.
+        if os.path.isdir(dest_path):
+            target_dest_path = os.path.join(dest_path, os.path.basename(source_path))
+        else:
+            # Otherwise, the destination path IS the target file path (for renaming).
+            target_dest_path = dest_path
     
-    print_ui_frame("Preparing...")
+    if args.list_missing:
+        print_ui_frame("Dry Run: Listing Missing Files")
+        list_missing_files(source_path, target_dest_path)
+        sys.exit(0)
+
+    print_ui_frame("Preparing for Transfer...")
     input("Press Enter to begin the transfer...")
     
     print_ui_frame("Calculating...")
