@@ -1,6 +1,6 @@
 # Advanced File Copy Utility (SmartCopy Utility)
 
-An advanced Python-based file copy utility with **progress bars, checksum verification, retries, and system stats** (CPU, RAM, network speed). Perfect for reliable file transfers with visual feedback.  
+An advanced Python-based file copy utility with **progress bars, checksum verification, retries, and system statistics** (CPU, RAM, network speed). Designed for reliable file transfers with clear visual feedback.
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.8+-blue.svg" alt="Python" />
@@ -10,14 +10,14 @@ An advanced Python-based file copy utility with **progress bars, checksum verifi
 
 ---
 
-## 🔧 Installation  
+## Installation
 
-### 1. Clone the repository  
+### 1. Clone the repository
 ```bash
 https://github.com/im-jayson-f/Advanced-File-Copy-Utility.git
 ```
 
-### 2. Create and activate a virtual environment *(optional but recommended)*  
+### 2. Create and activate a virtual environment (optional but recommended)
 ```bash
 python -m venv venv
 # On Linux/macOS
@@ -26,69 +26,80 @@ source venv/bin/activate
 venv\Scripts\activate
 ```
 
-### 3. Install dependencies  
-install manually:  
+### 3. Install dependencies
+Install manually:
 ```bash
 pip install tqdm colorama psutil
 ```
 
 ---
 
-## ▶️ Usage  
+## Usage
 
-Basic command:  
+Basic command:
 ```bash
-python SmartCopy-Utility.py <source> <destination> [--retry N]
+python SmartCopy-Utility.py <source> <destination> [--retry N] [--list-missing [copy-all]]
 ```
 
-### 💡 Examples  
-Copy a folder from C: to D:  
+### Examples
+Copy a folder from C: to D:
 ```bash
 python SmartCopy-Utility.py "C:\source_folder" "D:\destination_folder"
 ```
 
-Copy a file with 3 retry attempts on failure:  
+Copy a file with 3 retry attempts on failure:
 ```bash
 python SmartCopy-Utility.py "./my file.zip" "./backup" --retry 3
 ```
 
----
+List missing files without copying:
+```bash
+python SmartCopy-Utility.py "./source" "./backup" --list-missing
+```
 
-## ⚙️ Arguments  
-
-| Argument        | Required | Default | Description |
-|-----------------|----------|---------|-------------|
-| `source`        | ✅ Yes   | –       | Path of the file or folder to copy. |
-| `destination`   | ✅ Yes   | –       | Path to the destination folder. |
-| `--retry N`     | ❌ No    | `0`     | Number of retries for failed file copies. `0` = no retry (only one attempt). |
-
----
-
-## ✨ Features  
-
-- 📊 **Progress bar** with file size tracking  
-- 🔒 **Checksum verification** to ensure data integrity  
-- 🔁 **Retry mechanism** for failed copies  
-- 🖥️ **System stats** (CPU, RAM, network speed) displayed in real time  
-- 🌍 **Cross-platform support** (Windows, macOS, Linux)  
+List and copy only missing files:
+```bash
+python SmartCopy-Utility.py "./source" "./backup" --list-missing copy-all
+```
 
 ---
 
-## 📦 Requirements  
+## Arguments
 
-The following Python packages are required:  
-- `tqdm`  
-- `colorama`  
-- `psutil`  
+| Argument           | Required | Default | Description |
+|--------------------|----------|---------|-------------|
+| `source`           | Yes      | –       | Path of the file or folder to copy. |
+| `destination`      | Yes      | –       | Path to the destination folder. |
+| `--retry N`        | No       | `0`     | Number of retries for failed file copies. `0` = no retry (only one attempt). |
+| `--list-missing`   | No       | –       | Show missing files (those not yet copied). Use `--list-missing` alone to list only, or `--list-missing copy-all` to copy just the missing files. |
 
-Install them via:  
+---
+
+## Features
+
+- Progress bar with file size tracking
+- Checksum verification to ensure data integrity
+- Retry mechanism for failed copies
+- Real-time system statistics (CPU, RAM, network speed)
+- Cross-platform support (Windows, macOS, Linux)
+
+---
+
+## Requirements
+
+The following Python packages are required:
+- `tqdm`
+- `colorama`
+- `psutil`
+
+Install them via:
 ```bash
 pip install tqdm colorama psutil
 ```
 
 ---
 
-## 📸 Demo Output  
+## Demo Output
 
 ```
 --- Advanced Python File Copy Utility ---
@@ -100,7 +111,7 @@ Retries:     3
 100% |██████████████████████████████████████████████████████████████| 12.3G/12.3G [6:46:27<7:19:19, 1.82MB/s]
 CPU:  12.5% | RAM:  48.3% | Up:  0.00 KB/s | Down:  0.00 KB/s | File: example.bak
 
-✔️ Transfer complete!
+Transfer complete!
 Total time elapsed: 53 second(s)
 
 Press Enter to exit.
@@ -108,6 +119,6 @@ Press Enter to exit.
 
 ---
 
-## 📜 License  
+## License
 
-MIT License. Free to use and modify 😊✨  
+MIT License. Free to use and modify. 😊✨  
