@@ -68,10 +68,10 @@ python SmartCopy-Utility.py "./source" "./backup" --list-missing copy-all
 
 | Argument           | Required | Default | Description |
 |--------------------|----------|---------|-------------|
-| `source`           | Yes      | –       | Path of the file or folder to copy. |
-| `destination`      | Yes      | –       | Path to the destination folder. |
-| `--retry N`        | No       | `0`     | Number of retries for failed file copies. `0` = no retry (only one attempt). |
-| `--list-missing`   | No       | –       | Show missing files (those not yet copied). Use `--list-missing` alone to list only, or `--list-missing copy-all` to copy just the missing files. |
+| `source`           | ✅ Yes   | –       | Path of the file or folder to copy. |
+| `destination`      | ✅ Yes   | –       | Path to the destination folder. |
+| `--retry N`        | ❌ No    | `0`     | Number of retries for failed file copies. `0` = no retry (only one attempt). |
+| `--list-missing`   | ❌ No    | –       | Show missing files (those not yet copied). Use `--list-missing` alone to list only, or `--list-missing copy-all` to copy just the missing files. |
 
 ---
 
